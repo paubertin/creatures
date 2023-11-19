@@ -36,7 +36,7 @@ for (let i = 0; i < 360; i++) {
   sinTable[i] = Math.sin((i / 360) * 2 * Math.PI);
 }
 
-export function fastSin (xDeg: number) {
+export function fastSin(xDeg: number) {
   const deg = Math.round(xDeg);
   if (deg >= 0) {
     return sinTable[(deg % 360)];
@@ -44,7 +44,7 @@ export function fastSin (xDeg: number) {
   return -sinTable[((-deg) % 360)];
 };
 
-export function fastCos (xDeg: number) {
+export function fastCos(xDeg: number) {
   const deg = Math.round(Math.abs(xDeg));
   return cosTable[deg % 360];
 };
@@ -162,17 +162,17 @@ function getAllKeys(object: {}): PropertyKey[] {
 }
 
 export class DOMSegment {
-  public constructor (public from: DOMPoint, public to: DOMPoint) {}
+  public constructor(public from: DOMPoint, public to: DOMPoint) { }
 
   public matrixTransform(matrix?: DOMMatrixInit): DOMSegment {
     return new DOMSegment(this.from.matrixTransform(matrix), this.to.matrixTransform(matrix));
   }
 
-  public get length () {
-    return Math.sqrt((this.from.x - this.to.x)**2 + (this.from.y - this.to.y)**2);
+  public get length() {
+    return Math.sqrt((this.from.x - this.to.x) ** 2 + (this.from.y - this.to.y) ** 2);
   }
 
-  public transform (matrix: DOMMatrix) {
+  public transform(matrix: DOMMatrix) {
     const from = matrix.transformPoint(this.from);
     const to = matrix.transformPoint(this.to);
     return new DOMSegment(from, to);
@@ -184,7 +184,7 @@ export class DOMPolygon {
   private _segments: DOMSegment[];
   private _points: DOMPoint[];
 
-  public constructor (segments: DOMSegment[]) {
+  public constructor(segments: DOMSegment[]) {
     this._checkValid(segments);
     this._segments = segments;
     this._points = [];
@@ -192,11 +192,11 @@ export class DOMPolygon {
       this._points.push(this._segments[i].from);
       if (i < this._segments.length - 1) {
         this._points.push(this._segments[i].to);
-      } 
+      }
     }
   }
 
-  private _checkValid (segments: DOMSegment[]) {
+  private _checkValid(segments: DOMSegment[]) {
     const start = segments[0].from;
     const end = segments[segments.length - 1].to;
     if (!(start.x === end.x && start.y === end.y)) {
@@ -208,7 +208,7 @@ export class DOMPolygon {
     return new DOMPolygon(this._segments.map((s) => s.matrixTransform(matrix)));
   }
 
-  public get length () {
+  public get length() {
     return this._segments.reduce((prev, cur) => {
       return prev + cur.length;
     }, 0);
@@ -216,21 +216,32 @@ export class DOMPolygon {
 
 }
 
-export class BBox extends DOMRect {
+export class BBox {
 
   private _segments: DOMSegment[];
   private _points: DOMPoint[];
 
   public shape: Path;
 
-  public constructor (x: number = 0, y: number = 0, width: number = 0, height: number = 0) {
-    super(x, y, width, height);
-    this._points = [
-      new DOMPoint(x, y),
-      new DOMPoint(x + width, y),
-      new DOMPoint(x + width, y + height),
-      new DOMPoint(x, y + height),
-    ];
+  public constructor(pt1: DOMPoint, pt2: DOMPoint, pt3: DOMPoint, pt4: DOMPoint)
+  public constructor(x: number, y: number, width: number, height: number)
+  public constructor(x: number | DOMPoint = 0, y: number | DOMPoint = 0, width: number | DOMPoint = 0, height: number | DOMPoint = 0) {
+    if (typeof x === 'number') {
+      this._points = [
+        new DOMPoint(x, y as number),
+        new DOMPoint(x + (width as number), y as number),
+        new DOMPoint(x + (width as number), (y as number) + (height as number)),
+        new DOMPoint(x, (y as number) + (height as number)),
+      ];
+    }
+    else {
+      this._points = [
+        x as DOMPoint,
+        y as DOMPoint,
+        width as DOMPoint,
+        height as DOMPoint,
+      ];
+    }
     this._segments = [
       new DOMSegment(this._points[0], this._points[1]),
       new DOMSegment(this._points[1], this._points[2]),
@@ -246,24 +257,25 @@ export class BBox extends DOMRect {
     this.shape.closePath();
   }
 
-  public static override fromRect (rect: DOMRect) {
+  public static fromRect(rect: DOMRect) {
     return new BBox(rect.x, rect.y, rect.width, rect.height);
   }
 
-  public get segments () {
+  public get segments() {
     return this._segments;
   }
 
-  public get points () {
+  public get points() {
     return this._points;
   }
 
   public matrixTransform(matrix?: DOMMatrixInit): BBox {
     const tranformedSegments = this.segments.map((s) => s.matrixTransform(matrix));
-    return new BBox(tranformedSegments[0].from.x, tranformedSegments[0].from.y, tranformedSegments[0].length, tranformedSegments[1].length);
+    return new BBox(tranformedSegments[0].from, tranformedSegments[0].to, tranformedSegments[1].to, tranformedSegments[2].to);
   }
-  public transform (matrix: DOMMatrix) {
-    const segments = this._segments.map((p) => p.transform(matrix));
-    return new BBox(segments[0].from.x, segments[0].from.y, segments[0].length, segments[1].length);
+
+  public transform(matrix: DOMMatrix) {
+    const tranformedSegments = this._segments.map((p) => p.transform(matrix));
+    return new BBox(tranformedSegments[0].from, tranformedSegments[0].to, tranformedSegments[1].to, tranformedSegments[2].to);
   }
 }

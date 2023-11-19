@@ -121,8 +121,8 @@ export class Scene {
     return this.rootNode;
   }
 
-  public getNodes (cb: (node: SceneNode) => boolean, pool: SceneNode[] = this.rootNode.children) {
-    const nodes: SceneNode[] = [];
+  public getNodes <T extends SceneNode> (cb: (node: SceneNode) => node is T, pool: SceneNode[] = this.rootNode.children): T[] {
+    const nodes: T[] = [];
     for (const node of pool) {
       const subNodes = this.getNodes(cb, node.children);
       if (cb(node)) {

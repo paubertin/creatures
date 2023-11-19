@@ -5,6 +5,8 @@ import { Path } from "../geometry/path";
 import { BBox, DOMSegment, fastCos, toRad } from "../utils";
 import { TimeStep } from "../engine/time";
 import { Renderable } from "./renderable";
+import { Wall } from "./wall";
+import { Food } from "./food";
 
 export abstract class Sensor extends Renderable {
   public creature: Creature;
@@ -41,12 +43,10 @@ export class RangeSensor extends Sensor {
   public override shape: Path;
   public override bbox: BBox;
 
-  public resolution: number = 10 ;
+  public resolution: number = 7 ;
   public rays: Ray[] = [];
 
   public readings: ({ ray: DOMSegment; point: DOMPoint; segment: DOMSegment; bbox?: BBox; offset: number } | null)[] = [];
-
-  private inverseToWorld: DOMMatrix = new DOMMatrix();
 
   public constructor(creature: Creature, range: number, orientation: number, angle: number) {
     super(creature, orientation);
@@ -69,13 +69,14 @@ export class RangeSensor extends Sensor {
   protected override onUpdate(step: TimeStep) {
     this._activated = false;
     // this.detect();
-    this.inverseToWorld = this.transform.multiply(this.creature.transform).inverse();
     this.getReadings();
+
     // if (this.readings.some((r) => r !== null)) {
     //   console.log('readings', this.readings.map((r) => r === null ? null : r.offset));
     // }
   }
 
+  /*
   public detect() {
     for (const creature of CreatureManager.creatures) {
       if (creature.id === this.creature.id) continue;
@@ -106,55 +107,42 @@ export class RangeSensor extends Sensor {
       }
     }
   }
+  */
 
   private getReadings () {
     this.readings = [];
     for (const ray of this.rays) {
+      const creatures = this.scene.getNodes((node): node is Creature => node instanceof Creature).filter((c) => c.id !== this.creature.id);
+      const walls = this.scene.getNodes((node): node is Wall => node instanceof Wall);
+      const foods = this.scene.getNodes((node): node is Food => node instanceof Food);
+      const entities = [
+        // ...creatures,
+        ...walls,
+        ...foods,
+      ];
       this.readings.push(
-        this.getReading(ray, CreatureManager.creatures.filter((c) => c.id !== this.creature.id)),
+        this.getReading(ray, entities),
       );
     }
   }
 
   private getReading(ray: DOMSegment, entities: Renderable[]) {
     const touches = [];
-    const inWorldRay = ray.matrixTransform(this.creature.transform);
     for (const entity of entities) {
       const bbox = entity.bbox;
       if (!bbox) continue;
 
-      let globalBox = bbox.matrixTransform(entity.transform);
-      let localBbox = globalBox.matrixTransform(this.creature.transform.inverse());
-
-      const combinedTransform = entity.transform.multiply(this.creature.transform.inverse());
-
-      // localBbox = bbox.transform(combinedTransform);
+      let globalBox = bbox.matrixTransform(entity.globalTransform);
+      let localBbox = globalBox.matrixTransform(this.creature.translation.inverse());
+      localBbox = localBbox.matrixTransform(this.creature.rotation.inverse());
 
       for (const segment of localBbox.segments) {
         const touch = getIntersection(ray.from, ray.to, segment.from, segment.to);
         if (touch) {
-          touch.bbox = localBbox;
+          touch.bbox = localBbox; 
           touches.push(touch);
         }
       }
-
-      // bbox = bbox.matrixTransform(firstTransform);
-      // bbox = bbox.matrixTransform(this.inverseToWorld);
-      /*
-      for (const segment of bbox.segments) {
-        let from = segment.from;
-        let to = segment.to;
-        from = from.matrixTransform(firstTransform);
-        from = from.matrixTransform(this.inverseToWorld);
-        to = from.matrixTransform(firstTransform);
-        to = from.matrixTransform(this.inverseToWorld);
-        const touch = getIntersection(ray.from, ray.to, from, to);
-        if (touch) {
-          touches.push(touch);
-          console.log('bbox', bbox); 
-        }
-      }
-      */
     }
     if (touches.length === 0) {
       return null;
@@ -171,12 +159,14 @@ export class RangeSensor extends Sensor {
       ctx.globalAlpha = 0.4;
 
       ctx.setLineDash([5, 5]);
+      /*
       ctx.stroke(this.shape);
       ctx.fillStyle = 'red';
       if (this._activated) {
         ctx.globalAlpha = 0.2;
         ctx.fill(this.shape);
       }
+      */
 
       ctx.globalAlpha = 0.2;
       this.rays.forEach((ray) => ctx.stroke(ray.shape));
@@ -189,6 +179,7 @@ export class RangeSensor extends Sensor {
           ctx.fill(circle);
           ctx.setLineDash([]);
           ctx.strokeStyle = 'blue';
+          /*
           let segment = new Path();
           segment.moveTo(r.segment.from.x, r.segment.from.y);
           segment.lineTo(r.segment.to.x, r.segment.to.y);
@@ -197,12 +188,13 @@ export class RangeSensor extends Sensor {
           if (r.bbox) {
             ctx.stroke(r.bbox.shape);
           }
-
+          
           ctx.strokeStyle = 'green';
           segment = new Path();
           segment.moveTo(r.ray.from.x, r.ray.from.y);
           segment.lineTo(r.ray.to.x, r.ray.to.y);
           ctx.stroke(segment);
+          */
 
         }
       });

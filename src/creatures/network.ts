@@ -187,6 +187,12 @@ export default class Network {
     return -1;
   }
 
+  public getOutput (action: number) {
+    const output = this._output[action];
+    if (output > 0.5) return 1;
+    return 0;
+  }
+
   /**
    * Logistic activation function
    * @param  {number} a  [Input Value]

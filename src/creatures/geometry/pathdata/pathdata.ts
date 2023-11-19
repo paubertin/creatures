@@ -10,7 +10,7 @@ import {
   abs,
   tau,
   rad,
-  epsilon
+  EPSILON
 } from '../utils';
 import { Path } from '../path';
 import SvgPath from '../svg/svgpath';
@@ -246,7 +246,7 @@ export default class PathData extends Array<PathSegment> {
       this.moveTo(x1, y1);
     }
     // Or, is (x1,y1) coincident with (x0,y0)? Do nothing.
-    else if (l01_2 <= epsilon) {
+    else if (l01_2 <= EPSILON) {
       return;
     }
     // Or, are (x0,y0), (x1,y1) and (x2,y2) collinear?

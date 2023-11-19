@@ -74,9 +74,15 @@ export class Vector2 extends DOMPoint {
     return this.mult(b);
   }
 
-  public mult (a: number) {
-    this.x *= a;
-    this.y *= a;
+  public mult (a: number | Vector2) {
+    if (typeof a === 'number') {
+      this.x *= a;
+      this.y *= a;
+    }
+    else {
+      this.x *= a.x;
+      this.y *= a.y;
+    }
     return this;
   }
 
