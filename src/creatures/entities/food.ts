@@ -1,12 +1,13 @@
 import { Vector2 } from "../../vector2";
 import { Canvas } from "../engine/canvas";
 import { SceneNode } from "../engine/scene";
+import { Path } from "../geometry/path";
 import { Renderable } from "./renderable";
 
 export class Food extends Renderable {
   public size: number;
 
-  public color: string = '#FF0000';
+  public color: string = '#249710';
 
 
   public constructor (parent: SceneNode) {
@@ -15,11 +16,16 @@ export class Food extends Renderable {
       (Math.random() * (Canvas.width - size)) + size,
       (Math.random() * (Canvas.height - size)) + size,
     )
-    super(parent, position.x, position.y);
+    const shape = new Path();
+    shape.arc(0, 0, 4, 0, Math.PI * 2);
+    super(parent, position.x, position.y, 0, shape, 'FOOD');
     this.size = size;
   }
 
   public override onRender () {
-    Canvas.drawFillRect(this.position.x, this.position.y, this.size, this.size, this.color);
+    Canvas.custom((ctx) => {
+      ctx.fillStyle = this.color;
+      ctx.fill(this.shape!);
+    });
   }
 }

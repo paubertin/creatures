@@ -11,6 +11,7 @@ import { Matrix3 } from "./geometry/mat3";
 import { Matrix4 } from "./geometry/mat4";
 import { Wall } from "./entities/wall";
 import { DOMSegment } from "./utils";
+import { QuadTree } from "./engine/quadtree";
 
 const a: (string | number)[] = [];
 
@@ -39,9 +40,18 @@ async function main () {
 
   console.log('walls', walls);
 
-  FoodManager.init(50, world);
+  FoodManager.init(10, world);
+  console.log('foods', FoodManager.activeFood.map((f) => f.position));
 
-  CreatureManager.init(10, world);
+  CreatureManager.init(40, world);
+
+  const quadTree = new QuadTree<Creature>(0, 0, Canvas.width, Canvas.height);
+  for (const c of CreatureManager.creatures) {
+    quadTree.insert(c);
+  }
+
+  console.log('quad', quadTree);
+  console.log('creatures', CreatureManager.creatures);
 
   /*
   const gameLoop = new GameLoop(

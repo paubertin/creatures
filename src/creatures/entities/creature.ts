@@ -116,6 +116,10 @@ export class Creature extends Renderable {
     this.vertices = this.shape.toVertices(15);
   }
 
+  public get globalBbox () {
+    return this.bbox.matrixTransform(this.globalTransform);
+  }
+
   public setManager (m: typeof CreatureManager) {
     this.manager = m;
     return this;

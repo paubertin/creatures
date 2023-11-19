@@ -161,6 +161,8 @@ export class Engine {
 
       // end frame
       this.endFrame();
+
+      // console.log('fps', this.debugger.stats.currFrame.duration);
     }
 
     requestAnimationFrame(this.loop.bind(this));

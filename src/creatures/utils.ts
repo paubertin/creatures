@@ -261,6 +261,22 @@ export class BBox {
     return new BBox(rect.x, rect.y, rect.width, rect.height);
   }
 
+  public get x () {
+    return this._points[0].x;
+  }
+
+  public get y () {
+    return this._points[0].y;
+  }
+
+  public get width () {
+    return this._points[1].x - this._points[0].x;
+  }
+
+  public get height () {
+    return this._points[2].y - this._points[1].y;
+  }
+
   public get segments() {
     return this._segments;
   }
