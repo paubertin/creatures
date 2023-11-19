@@ -1,8 +1,12 @@
 export class GameLoop {
 
-  private _lastFrameTime: number = 0;
+  private _lastUpdateTime: number = 0;
+  private _lastRenderTime: number = 0;
   private _accumulatedTime: number = 0;
   private _timeStep: number = 1000 / 60;
+
+  private _updateInterval: number = 1000 / 60; // Fréquence de mise à jour en millisecondes
+  private _renderInterval: number = 1000 / 60; // Fréquence de rendu en millisecondes
 
   private _rafId: number | null = null;
   private _isRunning: boolean = false;
@@ -12,17 +16,20 @@ export class GameLoop {
   public _mainLoop (timeStamp: number) {
     if (!this._isRunning) return;
 
-    let deltaTime = timeStamp - this._lastFrameTime;
-    this._lastFrameTime = timeStamp;
+    const deltaTimeUpdate = timeStamp - this._lastUpdateTime;
+    const deltaTimeRender = timeStamp - this._lastRenderTime;
 
-    this._accumulatedTime += deltaTime;
+    if (deltaTimeUpdate > this._updateInterval) {
+      this._lastUpdateTime = timeStamp - (deltaTimeUpdate % this._updateInterval);
 
-    while (this._accumulatedTime >= this._timeStep) {
-      this.update(this._timeStep);
-      this._accumulatedTime -= this._timeStep;
+      this.update(deltaTimeUpdate);
     }
 
-    this.render();
+    if (deltaTimeRender > this._renderInterval) {
+      this._lastRenderTime = timeStamp - (deltaTimeRender % this._renderInterval);
+
+      this.render();
+    }
 
     this._rafId = requestAnimationFrame(this._mainLoop.bind(this));
   }

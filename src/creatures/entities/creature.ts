@@ -1,9 +1,14 @@
-import { Vector2 } from "../vector2";
-import { Canvas, TextOptions } from "./canvas";
-import { CreatureManager } from "./creature.manager";
-import { FoodManager } from "./food.manager";
-import Network from "./network";
-import { fastCos, fastSin, getAngle, isPointInsideEllipse, random, toRad } from "./utils";
+import { Vector2 } from "../../vector2";
+import { Canvas, TextOptions } from "../engine/canvas";
+import { CreatureManager } from "../creature.manager";
+import { FoodManager } from "../food.manager";
+import { Path } from "../geometry/path";
+import Network from "../network";
+import { RangeSensor, Sensor } from "./sensor";
+import { BBox, fastCos, fastSin, getAngle, isPointInsideEllipse, random, toRad } from "../utils";
+import { SceneNode } from "../engine/scene";
+import { TimeStep } from "../engine/time";
+import { Renderable } from "./renderable";
 
 export enum Gender {
   UNDEFINED = 'undefined',
@@ -29,13 +34,15 @@ export interface CreatureOptions {
   output?: number;
 }
 
-export class Creature {
+export class Creature extends Renderable {
 
-  private static ID: number = 0;
-
-  public transform: DOMMatrix = new DOMMatrix();
+  public override shape: Path;
+  public override bbox: BBox;
+  public override vertices: DOMPoint[];
 
   private manager!: typeof CreatureManager;
+
+  public sensors: RangeSensor[] = [];
 
   public size: number;
   public health: number;
@@ -43,10 +50,8 @@ export class Creature {
   public rayColor: string;
   public gender: Gender;
   public maxSpeed: number;
-  public position: Vector2;
   public velocity: Vector2;
   public acceleration: Vector2 = new Vector2();
-  public angle: number;
 
   public targetCenter: Vector2 = new Vector2();
   public targetLocation: Vector2 = new Vector2();
@@ -57,10 +62,13 @@ export class Creature {
 
   public brain: Network;
 
-  public id: number = Creature.ID++;
-
-  public constructor(opts?: CreatureOptions) {
-    const size = (Canvas.width > Canvas.height) ? (Canvas.width / Canvas.height) * 12 : (Canvas.height / Canvas.width) * 12;
+  public constructor(parent: SceneNode, opts?: CreatureOptions) {
+    const position = new Vector2(
+      (Math.random() * (Canvas.width - ((Canvas.width > Canvas.height) ? (Canvas.width / Canvas.height) * 12 : (Canvas.height / Canvas.width) * 12))) + ((Canvas.width > Canvas.height) ? (Canvas.width / Canvas.height) * 12 : (Canvas.height / Canvas.width) * 12),
+      (Math.random() * (Canvas.height - ((Canvas.width > Canvas.height) ? (Canvas.width / Canvas.height) * 12 : (Canvas.height / Canvas.width) * 12))) + ((Canvas.width > Canvas.height) ? (Canvas.width / Canvas.height) * 12 : (Canvas.height / Canvas.width) * 12),
+    );
+    const velocity = new Vector2(random(-1, 1), random(-1, 1));
+    super(parent, position.x, position.y, velocity.heading, undefined, 'creature');
     const options: Required<CreatureOptions> = {
       color: '#888888',
       rayColor: '#888888',
@@ -72,11 +80,11 @@ export class Creature {
       ),
       health: 1000,
       input: 5,
-      hidden: [10, 8, 6, 4],
+      hidden: [ 4 ],
       output: 2,
       ...opts,
     };
-    this.size = size;
+    this.size = 10;
     this.color = options.color;
     this.health = options.health;
     this.rayColor = options.rayColor;
@@ -84,15 +92,25 @@ export class Creature {
 
     this.maxSpeed = options.percentMaxSpeed * MAX_SPEED;
     this.position = options.position;
-    this.velocity = new Vector2(random(-1, 1), random(-1, 1));
-    this.angle = this.velocity.heading;
+    this.velocity = velocity;
 
     this.brain = new Network();
     this.brain.generateNetworkLayers(options.input, options.hidden, options.output);
     console.log(this.brain);
 
-    this.transform.translateSelf(this.position.x, this.position.y);
-    this.transform.rotateSelf(this.angle);
+    const sensor = new RangeSensor(this, 200, 0, 60);
+    this.sensors.push(
+      sensor,
+    );
+    this.addChild(sensor);
+
+    this.shape = new Path();
+    this.shape.ellipse(0, 0, this.size * 2, this.size, 0, 0, Math.PI * 2);
+    this.bbox = this.shape.getBBox();
+
+    console.log('creature path', this.shape);
+
+    this.vertices = this.shape.toVertices(15);
   }
 
   public setManager (m: typeof CreatureManager) {
@@ -152,14 +170,14 @@ export class Creature {
     const state = action1;
     const state2 = (action2 + 1) / 2;
 
-    const angle = state * Math.PI * 0.5 + this.angle;
+    const angle = state * Math.PI * 0.5 + this.orientation;
 
     const r = this.size * state2;
     const x = r * fastCos(angle);
     const y = r * fastSin(angle);
 
-    this.targetCenter.x = this.position.x + r * fastCos(this.angle);
-    this.targetCenter.y = this.position.y + r * fastSin(this.angle);
+    this.targetCenter.x = this.position.x + r * fastCos(this.orientation);
+    this.targetCenter.y = this.position.y + r * fastSin(this.orientation);
 
     this.targetLocation.x = this.targetCenter.x + x * 1.25;
     this.targetLocation.y = this.targetCenter.y + y * 1.25;
@@ -173,13 +191,17 @@ export class Creature {
     this.velocity.add(this.acceleration);
     this.velocity.limit(this.maxSpeed);
     if (this.velocity.sqLength > 0) {
-      this.angle = this.velocity.heading;
+      this.orientation = this.velocity.heading;
     }
     this.position.add(this.velocity);
     this.acceleration.mult(0);
   }
 
-  public update() {
+  protected override onUpdate(step: TimeStep) {
+    if (this.manager.selectedCreature?.id === this.id) return;
+
+    const readings = this.sensors.map((s) => s.readings);
+
     const food = this.getClosestFood();
     let foodDist = -1;
     let foodDir = -1;
@@ -188,7 +210,11 @@ export class Creature {
       foodDist = direction.length / this.rayRadius;
       foodDir = direction.heading;
     }
-    const res = this.brain.compute([food ? 1 : 0, this.position.x / Canvas.width, this.position.y / Canvas.height, this.velocity.x, this.velocity.y]);
+
+    const activations = this.sensors.map((s) => s.activated ? 1 : 0);
+
+    const res = this.brain.compute([ ...activations, this.position.x / Canvas.width, this.position.y / Canvas.height, this.velocity.x, this.velocity.y]);
+    // const res = this.brain.compute([food ? 1 : 0, this.position.x / Canvas.width, this.position.y / Canvas.height, this.velocity.x, this.velocity.y]);
 
     this._calculateTarget(this.brain.getAction(0), this.brain.getAction(1));
 
@@ -243,92 +269,32 @@ export class Creature {
 
     //increment this creature time alive
     this.timeAlive++;
-
-    this.transform = new DOMMatrix();
-    this.transform.translateSelf(this.position.x, this.position.y);
-    this.transform.rotateSelf(this.angle);
   }
 
-  public render() {
+  public get isSelected () {
+    return this.manager.selectedCreature?.id === this.id
+  }
 
-    Canvas.custom('creatures', (ctx) => {
-      ctx.save();
+  protected override onRender() {
+
+    Canvas.custom((ctx) => {
 
       if (this.manager.selectedCreature && this.manager.selectedCreature.id !== this.id) {
         ctx.globalAlpha = 0.2;
       }
-  
-      ctx.setTransform(this.transform);
 
       ctx.strokeStyle = this.rayColor;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, this.size * 2, this.size, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.closePath();
+      ctx.stroke(this.shape);
 
-      let p = new DOMPoint(this.size * 1.72, 0);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
-      ctx.stroke();
-      ctx.closePath();
+      if (Canvas.debug) {
+        ctx.setLineDash([2, 2]);
+        ctx.strokeStyle = 'black';
+        ctx.stroke(this.bbox.shape);
+      }
 
-      ctx.moveTo(p.x, p.y);
-      let transform = new DOMMatrix();
-      transform.translateSelf(p.x, p.y);
-      transform.rotateSelf(-30);
-      transform.translateSelf(this.size, 0);
-      let endPoint = p.matrixTransform(transform);
-      ctx.lineTo(endPoint.x, endPoint.y);
-      ctx.stroke();
-  
-      ctx.moveTo(p.x, p.y);
-      transform = new DOMMatrix();
-      transform.translateSelf(p.x, p.y);
-      transform.rotateSelf(30);
-      transform.translateSelf(this.size, 0);
-      endPoint = p.matrixTransform(transform);
-      ctx.lineTo(endPoint.x, endPoint.y);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(this.size * 1.5, -7, 3, 0, 2 * Math.PI);
-      ctx.stroke();
-      ctx.closePath();
-
-      ctx.beginPath();
-      ctx.arc(this.size * 1.5, 7, 3, 0, 2 * Math.PI);
-      ctx.stroke();
-      ctx.closePath();
-
-      ctx.restore();
     });
 
-    // Canvas.drawFillRect('creatures', this.x - this.size / 2, this.y - this.size / 2, this.size, this.size, this.color);
-    // Canvas.drawCircle('creatures', this.x, this.y, this.rayRadius, this.rayColor);
     /*
-    Canvas.drawEllipse('creatures',
-      this.x + this.size / 2 * alpha,
-      this.y + this.size / 2 * alpha,
-      this.rayRadius * 2 * alpha,
-      this.rayRadius * alpha,
-      toRad(this.angle),
-      0,
-      Math.PI * 2,
-      this.rayColor);
-    */
-
-      /*
-    Canvas.save('creatures');
-    Canvas.rotate('creatures', toRad(this.angle));
-    Canvas.drawLine('creatures',
-      this.x + this.size / 2 * alpha,
-      this.y + this.size / 2 * alpha,
-      this.x + this.size / 2 * alpha + this.rayRadius * 2.5 * alpha,
-      this.y + this.size / 2 * alpha,
-      this.rayColor);
-    Canvas.restore('creatures');
-    */
-
     if (this.manager.selectedCreature?.id === this.id) {
       const fontSize = Canvas.width > 900
         ? 10
@@ -338,14 +304,14 @@ export class Creature {
 
       const options: TextOptions = {
         fillStyle: '#000000',
-        fontSize,
+        fontSize: 10,
         font: 'Arial',
       };
 
-      Canvas.text('creatures', `Angle: ${(Math.round(this.angle * 100) / 100)}`, this.x - this.size, this.y - this.size * 2.5, options);
-      Canvas.text('creatures', `Speed: ${Math.abs(Math.round(this.currentSpeed * 100) / 100)}`, this.x - this.size, this.y - this.size * 2, options);
-      Canvas.text('creatures', `Health: ${Math.floor(this.health / 10)}`, this.x - this.size, this.y - this.size * 1.5, options);
-      Canvas.text('creatures', `Age: ${Math.round(this.timeAlive)} (${this.isAdult ? 'Adult' : 'Child'})`, this.x - this.size, this.y - this.size, options);
+      Canvas.text(`Angle: ${(Math.round(this.orientation * 100) / 100)}`, this.x - this.size, this.y - this.size * 2.5, options);
+      Canvas.text(`Speed: ${Math.abs(Math.round(this.currentSpeed * 100) / 100)}`, this.x - this.size, this.y - this.size * 2, options);
+      Canvas.text(`Health: ${Math.floor(this.health / 10)}`, this.x - this.size, this.y - this.size * 1.5, options);
+      Canvas.text(`Age: ${Math.round(this.timeAlive)} (${this.isAdult ? 'Adult' : 'Child'})`, this.x - this.size, this.y - this.size, options);
       let state = '';
       if (this.isPregnant) {
         state += 'Pregnant ';
@@ -356,11 +322,12 @@ export class Creature {
       if (state === '') {
         state = 'Roaming';
       }
-      Canvas.text('creatures', `State: ${state}`, this.x - this.size, this.y - this.size / 2, options);
+      Canvas.text(`State: ${state}`, this.x - this.size, this.y - this.size / 2, options);
     }
+    */
 
     if (this.isPregnant) {
-      Canvas.drawCircle('creatures', this.x, this.y, this.timePregnant / 200, '#000000');
+      Canvas.drawCircle(this.x, this.y, this.timePregnant / 200, '#000000');
     }
   }
 

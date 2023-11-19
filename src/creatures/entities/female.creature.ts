@@ -1,8 +1,9 @@
+import { SceneNode } from "../engine/scene";
 import { Creature, Gender } from "./creature";
 
 export class FemaleCreature extends Creature {
-  public constructor () {
-    super ({
+  public constructor (parent: SceneNode) {
+    super (parent, {
       color: '#880088',
       rayColor: '#550055',
       gender: Gender.FEMALE,

@@ -1,10 +1,9 @@
-import { Canvas } from "./canvas";
 import { Creature, Gender } from "./creature";
+import { SceneNode } from "../engine/scene";
 
 export class MaleCreature extends Creature {
-  public constructor () {
-    const size = (Canvas.width > Canvas.height) ? (Canvas.width / Canvas.height) * 12 : (Canvas.height / Canvas.width) * 12;
-    super ({
+  public constructor (parent: SceneNode) {
+    super (parent, {
       color: '#0000AA',
       rayColor: '#000088',
       gender: Gender.MALE,

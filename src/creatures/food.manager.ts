@@ -1,5 +1,5 @@
-import { Canvas } from "./canvas";
-import { Food } from "./food";
+import { SceneNode } from "./engine/scene";
+import { Food } from "./entities/food";
 
 export class FoodManager {
   private static instance: FoodManager;
@@ -7,20 +7,19 @@ export class FoodManager {
 
   private constructor (public numberOfInitialFood: number) {}
 
-  public static spawnFood () {
-    this.instance.activeFood.push(new Food());
+  public static spawnFood (rootNode: SceneNode) {
+    this.instance.activeFood.push(new Food(rootNode));
   }
 
-  public static init (numberOfInitialFood: number) {
+  public static init (numberOfInitialFood: number, rootNode: SceneNode) {
     if (this.instance) return;
     this.instance = new FoodManager(numberOfInitialFood);
     for(let i = 0; i < this.instance.numberOfInitialFood; i++) {
-      this.spawnFood();
+      this.spawnFood(rootNode);
     }
   }
 
   public static render () {
-    Canvas.clearRect('food');
     this.instance.activeFood.forEach((food) => food.render());
   }
 

@@ -1,16 +1,33 @@
 import { GameLoop } from "../gameLoop";
-import { Canvas } from "./canvas";
+import { Canvas } from "./engine/canvas";
 import { CreatureManager } from "./creature.manager";
+import { Engine } from "./engine/engine";
 import { FoodManager } from "./food.manager";
+import { Scene } from "./engine/scene";
+import { World } from "./entities/world";
+import { Path } from "./geometry/path";
 
-function main () {
-  Canvas.init();
+const a: (string | number)[] = [];
 
-  Canvas.drawFillRect('world', 0, 0, Canvas.width, Canvas.height, '#DDDDDD');
+a.filter((v): v is string => typeof v === 'string').map((v) => {});
 
-  FoodManager.init(20);
-  CreatureManager.init(20);
+async function main () {
+  const engine = await Engine.initialize({
+    rendering: {
+      renderInterval: 1000 / 30,
+      updateInterval: 1000 / 30,
+    },
+  });
 
+  const scene = new Scene(engine);
+
+  const world = new World(scene);
+
+  FoodManager.init(0, world);
+
+  CreatureManager.init(2, world);
+
+  /*
   const gameLoop = new GameLoop(
     () => {
       CreatureManager.update();
@@ -20,12 +37,46 @@ function main () {
       FoodManager.render();
     }
   );
+  */
 
-  window.addEventListener('click', (evt) => {
+
+  const listener = (evt: MouseEvent) => {
+    CreatureManager.selectedCreature!.position.x = evt.clientX;
+    CreatureManager.selectedCreature!.position.y = evt.clientY;
+  }
+
+  window.addEventListener('mousedown', (evt) => {
     let found = false;
     for (const c of CreatureManager.creatures) {
       if (c.isPointInside(new DOMPoint(evt.clientX, evt.clientY))) {
-        console.log('inside');
+        if (CreatureManager.selectedCreature?.id === c.id) {
+          CreatureManager.selectedCreature = null;
+        }
+        else {
+          CreatureManager.selectedCreature = c;
+        }
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      CreatureManager.selectedCreature = null;
+    }
+    if (CreatureManager.selectedCreature) {
+      window.addEventListener('mousemove', listener);
+    }
+    else if (listener) {
+      window.removeEventListener('mousemove', listener);
+    }
+  });
+
+
+  /*
+  window.addEventListener('click', (evt) => {
+    let found = false;
+    console.log('click', evt.clientX, evt.clientY);
+    for (const c of CreatureManager.creatures) {
+      if (c.isPointInside(new DOMPoint(evt.clientX, evt.clientY))) {
         if (CreatureManager.selectedCreature?.id === c.id) {
           CreatureManager.selectedCreature = null;
         }
@@ -40,9 +91,28 @@ function main () {
       CreatureManager.selectedCreature = null;
     }
   });
+  */
 
-  gameLoop.start();
+  window.addEventListener('keydown', (evt) => {
+    if (evt.key === 'd') {
+      Canvas.debug = !Canvas.debug;
+    }
+    if (evt.key === ' ') {
+      Engine.pause = !Engine.pause;
+    }
+    if (evt.key === 's') {
+      Engine.step();
+    }
+  });
+
+  // gameLoop.start();
+
+  console.log('Path', Path);
+
+  scene.setActive();
+
+  Engine.run();
 
 }
 
-main();
+void main();
